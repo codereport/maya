@@ -28,7 +28,9 @@ enum class node_type {
     TRINODE, // S' combinator or PHOENIX
     OPERATOR,
     FUNCTION,
-    ARRAY
+    ARRAY,
+    // FUSIONS
+    LSR     // LIFTED_SCAN_REDUCE
 };
 
 struct node {
@@ -66,6 +68,46 @@ struct fnnode : public node {
         node{node_type::FUNCTION},
         fn{f} {}
 };
+
+// lsr = lifted_scan_reduce
+struct lsr_node : public node {
+    static constexpr op_type op = op_type::REDUCE;
+    node* outer_op;
+    node* inner_op;
+    lsr_node(node* outer, node* inner) :
+        node{node_type::LSR},
+        outer_op{outer},
+        inner_op{inner} {}
+};
+
+void fuse(node* n) {
+    switch (n->type) {
+        case node_type::TRINODE:
+        {
+            auto t = dynamic_cast<trinode*>(n);
+            for (auto& c : t->components) fuse(c);
+            break;
+        }
+        case node_type::DINODE:
+        {
+            auto t = dynamic_cast<dinode*>(n);
+            for (auto& c : t->components) fuse(c);
+
+            if(t->components[0]->type == node_type::OPERATOR and 
+               t->components[1]->type == node_type::OPERATOR) {
+                   auto a = dynamic_cast<opnode*>(t->components[0]);
+                   auto b = dynamic_cast<opnode*>(t->components[1]);
+                   if (a->op == op_type::REDUCE and 
+                       b->op == op_type::SCAN) {
+                        delete n;
+                        n = new lsr_node{a->fn_arg, b->fn_arg};
+                    }
+               }
+
+            break;
+        }
+    }
+}
 
 constexpr int8_t INDENT_SIZE = 3;
 
@@ -111,9 +153,17 @@ void print(node* n, int indent = 0) {
         }
         case node_type::FUNCTION:
         {
-            std::cout << std::string(indent * INDENT_SIZE, ' ') + "OPERATOR ";
+            std::cout << std::string(indent * INDENT_SIZE, ' ') + "FUNCTION ";
             auto t = dynamic_cast<fnnode*>(n);
             std::cout << to_string(t->fn) << '\n';
+            break;
+        }
+        case node_type::LSR:
+        {
+            std::cout << std::string(indent * INDENT_SIZE, ' ') + "LSR\n";
+            auto t = dynamic_cast<lsr_node*>(n);
+            print(t->outer_op, indent + 1);
+            print(t->inner_op, indent + 1);
             break;
         }
     }
@@ -138,6 +188,10 @@ auto main() -> int {
                 new fnnode{fn_type::MAX},
                 new fnnode{fn_type::PLUS},
             }}};
+
+    print(b);
+
+    fuse(b);
 
     print(b);
 
