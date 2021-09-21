@@ -92,10 +92,41 @@ struct lsr_node : public node {
         inner_op{inner} {}
 };
 
+auto is_scalar(node* n) -> bool {
+    if (n->type != node_type::ARRAY) return false;
+    auto t = dynamic_cast<array_node*>(n);
+    return t->rank == 0;
+}
+
+auto is_scalar_op(node* n) -> bool {
+    if (n->type != node_type::FUNCTION) return false;
+    auto t = dynamic_cast<fnnode*>(n);
+    return t->fn == fn_type::MAX
+        or t->fn == fn_type::MIN
+        or t->fn == fn_type::PLUS
+        or t->fn == fn_type::TIMES;
+}
+
+auto is_scalar_transform_trinode(node* n) -> bool {
+    if (n->type != node_type::TRINODE) return false;
+    auto a = dynamic_cast<trinode*>(n);
+    if (not is_scalar   (a->components[0])) return false;
+    if (not is_scalar_op(a->components[1])) return false;
+    if (a->components[2]->type != node_type::TRINODE) return false;
+    auto b = dynamic_cast<trinode*>(a);
+    if (not is_scalar   (b->components[0])) return false;
+    if (not is_scalar_op(b->components[1])) return false;
+    return true;
+}
+
 void fuse(node* n) {
     switch (n->type) {
         case node_type::TRINODE:
         {
+            if (is_scalar_transform_trinode(n)) {
+                std::cout << "TODO transform-transform fusion\n";
+            }
+
             auto t = dynamic_cast<trinode*>(n);
             for (auto& c : t->components) fuse(c);
             break;
@@ -226,6 +257,8 @@ auto main() -> int {
             new fnnode{fn_type::IDENTITY}
         }};
 
+    print(c);
+    fuse(c);
     print(c);
 
     return 0;
