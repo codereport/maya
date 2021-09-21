@@ -2,6 +2,7 @@
 #include <array>
 #include <iostream>
 #include <string>
+#include <vector>
 
 enum class fn_type {
     // A = ASSOCIATIVE, C = COMMUTATIVE
@@ -10,6 +11,8 @@ enum class fn_type {
     MAX,   // AC
     MIN,   // AC
     PLUS,  // AC
+    TIMES, // AC
+    IDENTITY,
     IOTA
 };
 
@@ -69,6 +72,15 @@ struct fnnode : public node {
         fn{f} {}
 };
 
+struct array_node : public node {
+    int16_t rank;
+    std::vector<int> data;
+    array_node(int16_t r, std::vector<int> d) :
+        node{node_type::ARRAY},
+        rank{r},
+        data{d} {}
+};
+
 // lsr = lifted_scan_reduce
 struct lsr_node : public node {
     static constexpr op_type op = op_type::REDUCE;
@@ -113,12 +125,14 @@ constexpr int8_t INDENT_SIZE = 3;
 
 auto to_string(fn_type f) -> std::string {
     switch (f) {
-        case fn_type::LEFT:  return "LEFT";
-        case fn_type::RIGHT: return "RIGHT";
-        case fn_type::MAX:   return "MAX";
-        case fn_type::MIN:   return "MIN";
-        case fn_type::PLUS:  return "PLUS";
-        case fn_type::IOTA:  return "IOTA";
+        case fn_type::LEFT:     return "LEFT";
+        case fn_type::RIGHT:    return "RIGHT";
+        case fn_type::MAX:      return "MAX";
+        case fn_type::MIN:      return "MIN";
+        case fn_type::PLUS:     return "PLUS";
+        case fn_type::TIMES:    return "TIMES";
+        case fn_type::IDENTITY: return "IDENTITY";
+        case fn_type::IOTA:     return "IOTA";
     }
     return "FAILURE";
 }
@@ -158,6 +172,15 @@ void print(node* n, int indent = 0) {
             std::cout << to_string(t->fn) << '\n';
             break;
         }
+        case node_type::ARRAY:
+        {
+            std::cout << std::string(indent * INDENT_SIZE, ' ') + "ARRAY ";
+            auto t = dynamic_cast<array_node*>(n);
+            std::cout << "rank: " << t->rank << " data: ";
+            for (auto const& e : t->data) std::cout << e << ' ';
+            std::cout << '\n';
+            break;
+        }
         case node_type::LSR:
         {
             std::cout << std::string(indent * INDENT_SIZE, ' ') + "LSR\n";
@@ -190,10 +213,20 @@ auto main() -> int {
             }}};
 
     print(b);
-
     fuse(b);
-
     print(b);
+
+    // (2 times (1 plus identity))
+    node* c = new trinode{
+        new array_node{0, {2}},
+        new fnnode{fn_type::TIMES},
+        new trinode{
+            new array_node{0, {1}},
+            new fnnode{fn_type::PLUS},
+            new fnnode{fn_type::IDENTITY}
+        }};
+
+    print(c);
 
     return 0;
 }
